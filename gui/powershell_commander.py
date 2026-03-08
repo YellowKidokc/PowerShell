@@ -12,6 +12,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Callable
+from tkinter import filedialog
 import queue
 
 
@@ -573,6 +574,7 @@ class PowerShellCommander(ctk.CTk):
 
         # Create UI
         self._create_header()
+        self._create_folder_bar()
         self._create_main_content()
         self._create_status_bar()
 
@@ -616,6 +618,66 @@ class PowerShellCommander(ctk.CTk):
             hover_color="#6a6a8a",
             command=self._refresh
         ).pack(side="left", padx=5)
+
+    def _create_folder_bar(self):
+        """Create the working folder selector bar"""
+        folder_bar = ctk.CTkFrame(self, fg_color="#1a1a2e", height=40)
+        folder_bar.pack(fill="x", padx=10, pady=(0, 5))
+        folder_bar.pack_propagate(False)
+
+        ctk.CTkLabel(
+            folder_bar,
+            text="📂 Working Folder:",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#aaaabb"
+        ).pack(side="left", padx=(10, 5), pady=5)
+
+        self.folder_var = ctk.StringVar(
+            value=self.config.config.get("working_dir", "")
+        )
+
+        self.folder_entry = ctk.CTkEntry(
+            folder_bar,
+            textvariable=self.folder_var,
+            placeholder_text="No folder set — scripts run from their own location",
+            width=500
+        )
+        self.folder_entry.pack(side="left", fill="x", expand=True, padx=5, pady=5)
+
+        ctk.CTkButton(
+            folder_bar,
+            text="Browse",
+            width=80,
+            fg_color="#4a4a6a",
+            hover_color="#6a6a8a",
+            command=self._browse_folder
+        ).pack(side="left", padx=5, pady=5)
+
+        ctk.CTkButton(
+            folder_bar,
+            text="Clear",
+            width=60,
+            fg_color="#4a4a6a",
+            hover_color="#6a6a8a",
+            command=self._clear_folder
+        ).pack(side="left", padx=(0, 10), pady=5)
+
+    def _browse_folder(self):
+        """Open folder picker dialog"""
+        folder = filedialog.askdirectory(title="Select Working Folder")
+        if folder:
+            self.folder_var.set(folder)
+            # Save to config
+            self.config.config["working_dir"] = folder
+            self.config.save_config()
+            self._update_status(f"Working folder set: {folder}")
+
+    def _clear_folder(self):
+        """Clear the working folder"""
+        self.folder_var.set("")
+        self.config.config["working_dir"] = ""
+        self.config.save_config()
+        self._update_status("Working folder cleared — scripts run from their own location")
 
     def _create_main_content(self):
         """Create the main content area with categories and scripts"""
@@ -815,8 +877,8 @@ class PowerShellCommander(ctk.CTk):
             self.console.append(f"❌ Unsupported script type: {ext}\n")
             return
 
-        # Use working directory if specified in script config
-        work_dir = script_info.get("working_dir", None)
+        # Use working directory: per-script first, then global folder bar, then None
+        work_dir = script_info.get("working_dir") or self.folder_var.get() or None
 
         self.console.append_command(display)
         self._update_status(f"Running: {script_name}...")
